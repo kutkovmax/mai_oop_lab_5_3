@@ -35,7 +35,7 @@ public:
         if (!head) return;
         Node<T>* old = head;
         head = head->next;
-        this->destroy_node(old); // этот вызов делаем через this->
+        this->destroy_node(old);
         before_head.next = head; // обновляем before_head
     }
 
@@ -78,8 +78,21 @@ public:
     // Вставить после позиции
     iterator insert_after(iterator pos, const T& value) {
         Node<T>* p = pos.nodeptr();
-        if (!p) throw std::logic_error("insert_after: invalid iterator");
 
+        if (!p) // неверный итератор
+            throw std::logic_error("insert_after: invalid iterator");
+
+        // Явно обрабатываем вставку после before_head (это — вставка в начало)
+        if (p == reinterpret_cast<Node<T>*>(&before_head)) {
+            // эквивалент push_front, но без повторного обновления before_head (ниже мы обновим)
+            Node<T>* node = alloc.allocate(1);
+            std::allocator_traits<Alloc>::construct(alloc, node, Node<T>{value, head});
+            head = node;
+            before_head.next = head;
+            return iterator(node);
+        }
+
+        // Обычная вставка после реального узла
         Node<T>* node = alloc.allocate(1);
         std::allocator_traits<Alloc>::construct(alloc, node, Node<T>{value, p->next});
         p->next = node;
@@ -117,13 +130,14 @@ public:
 
     // Перед началом (нужно для insert_after)
     iterator before_begin() { return iterator(reinterpret_cast<Node<T>*>(&before_head)); }
+    const_iterator before_begin() const { return const_iterator(reinterpret_cast<Node<T>*>(&before_head)); }
 
     // Очистить список
     void clear() {
         Node<T>* curr = head;
         while (curr) {
             Node<T>* nxt = curr->next;
-            this->destroy_node(curr); // <-- this->
+            this->destroy_node(curr);
             curr = nxt;
         }
         head = nullptr;

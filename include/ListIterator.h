@@ -1,39 +1,51 @@
 #pragma once
 
+#include <type_traits>
 #include "Node.h"
 
 template <typename T>
 class ListIterator {
-    public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = T;
-        using difference_type = std::ptrdiff_t;
-        using pointer = T*;
-        using reference = T&;
+public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type        = T;
+    using difference_type   = std::ptrdiff_t;
+    using pointer           = T*;
+    using reference         = T&;
 
-        ListIterator(Node<T>* ptr) : current(ptr) {}
+    // Node<remove_const_t<T>> — узлы всегда НЕ const
+    using NodeType = Node<std::remove_const_t<T>>;
 
-        reference operator*() const {
-            return current->value;
-        }
+    ListIterator(NodeType* ptr) : current(ptr) {}
 
-        pointer operator->() const {
-            return &current->value;
-        }
+    // разыменование
+    reference operator*() const {
+        return current->value;
+    }
 
-        ListIterator& operator++() {
+    pointer operator->() const {
+        return &current->value;
+    }
+
+    // ++it
+    ListIterator& operator++() {
+        if (current)
             current = current->next;
-            return *this;
-        }
+        return *this;
+    }
 
-        bool operator!=(const ListIterator& other) const {
-            return current != other.current;
-        }
+    // сравнение
+    bool operator==(const ListIterator& other) const {
+        return current == other.current;
+    }
 
-        bool operator==(const ListIterator& other) const {
-            return current == other.current;
-        }
+    bool operator!=(const ListIterator& other) const {
+        return current != other.current;
+    }
 
-    private:
-        Node<T>* current = nullptr;
+    NodeType* nodeptr() const {
+        return current;
+    }
+
+private:
+    NodeType* current = nullptr;
 };

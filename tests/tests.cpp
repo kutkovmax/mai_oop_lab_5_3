@@ -280,3 +280,64 @@ TEST(MemoryResourceTest, ReuseAfterManyAllocations) {
 
     EXPECT_LT(mem.used_blocks_count(), 100);  // должно быть мало блоков
 }
+
+TEST(ForwardListDemoTest, DemonstrateComplexStructUsage) {
+    struct Person {
+        std::string name;
+        int age;
+        double salary;
+    };
+
+    FixedBlockResource mem(4096);
+    ForwardList<Person> list(&mem);
+
+    list.push_back({"Alice", 30, 5000.0});
+    list.push_back({"Bob", 40, 6500.5});
+    list.push_front({"Zara", 25, 4200.75});
+
+    std::vector<Person> collected;
+    for (const auto& p : list) collected.push_back(p);
+
+    ASSERT_EQ(collected.size(), 3);
+
+    EXPECT_EQ(collected[0].name, "Zara");
+    EXPECT_EQ(collected[0].age, 25);
+    EXPECT_DOUBLE_EQ(collected[0].salary, 4200.75);
+
+    EXPECT_EQ(collected[1].name, "Alice");
+    EXPECT_EQ(collected[1].age, 30);
+    EXPECT_DOUBLE_EQ(collected[1].salary, 5000.0);
+
+    EXPECT_EQ(collected[2].name, "Bob");
+    EXPECT_EQ(collected[2].age, 40);
+    EXPECT_DOUBLE_EQ(collected[2].salary, 6500.5);
+}
+
+TEST(ForwardListDemoTest, ComplexStructInsertErase) {
+    struct Book {
+        std::string title;
+        int pages;
+    };
+
+    FixedBlockResource mem(2048);
+    ForwardList<Book> list(&mem);
+
+    list.push_back({"C++", 1200});
+    list.push_back({"Rust", 800});
+    list.push_back({"Go", 600});
+
+    auto it = list.begin();     // points to "C++"
+    list.insert_after(it, {"Python", 700});
+
+    it = list.begin();          // C++
+    ++it;                       // Python
+    list.erase_after(it);       // remove "Rust"
+
+    std::vector<Book> out;
+    for (const auto& b : list) out.push_back(b);
+
+    ASSERT_EQ(out.size(), 3);
+    EXPECT_EQ(out[0].title, "C++");
+    EXPECT_EQ(out[1].title, "Python");
+    EXPECT_EQ(out[2].title, "Go");
+}
