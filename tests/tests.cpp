@@ -1,98 +1,123 @@
 #include <gtest/gtest.h>
-#include <array>
+
 #include <memory_resource>
+#include "FixedBlockResource.h"
+#include "ForwardList.h"
 
-#include "pmr_map_resource.hpp"
-#include "pmr_forward_list.hpp"
+// ------------------------------------------------------------
+// ForwardList push/pop operations
+// ------------------------------------------------------------
+TEST(ForwardListTest, PushBackAddsElements) {
+    FixedBlockResource mem(2048);
+    ForwardList<int> list(&mem);
 
-struct Data {
-    std::string label;
-    int value;
-};
+    list.push_back(1);
+    list.push_back(2);
+    list.push_back(3);
 
-TEST(PMRList, PushAndIterateInts) {
-    static std::array<std::byte, 4096> buffer;
+    std::vector<int> result;
+    for (int v : list) result.push_back(v);
 
-    pmr_map_resource mem(buffer.data(), buffer.size());
-    pmr_forward_list<int> lst(&mem);
-
-    lst.push_front(3);
-    lst.push_front(2);
-    lst.push_front(1);
-
-    int expected = 1;
-    for (int v : lst)
-        EXPECT_EQ(v, expected++);
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0], 1);
+    EXPECT_EQ(result[1], 2);
+    EXPECT_EQ(result[2], 3);
 }
 
-TEST(PMRList, PushAndIterateStructs) {
-    static std::array<std::byte, 4096> buffer;
+TEST(ForwardListTest, PushFrontWorks) {
+    FixedBlockResource mem(2048);
+    ForwardList<int> list(&mem);
 
-    pmr_map_resource mem(buffer.data(), buffer.size());
-    pmr_forward_list<Data> lst(&mem);
+    list.push_front(10);
+    list.push_front(20);
 
-    lst.emplace_front("C", 3);
-    lst.emplace_front("B", 2);
-    lst.emplace_front("A", 1);
+    auto it = list.begin();
+    ASSERT_NE(it, list.end());
+    EXPECT_EQ(*it, 20);
 
-    std::vector<std::string> labels;
-    for (const auto& d : lst)
-        labels.push_back(d.label);
-
-    ASSERT_EQ(labels.size(), 3);
-    EXPECT_EQ(labels[0], "A");
-    EXPECT_EQ(labels[1], "B");
-    EXPECT_EQ(labels[2], "C");
+    ++it;
+    ASSERT_NE(it, list.end());
+    EXPECT_EQ(*it, 10);
 }
 
-TEST(PMRList, MemoryReusedAfterDestruction) {
-    static std::array<std::byte, 4096> buffer;
+TEST(ForwardListTest, PopFrontRemovesFirstElement) {
+    FixedBlockResource mem(2048);
+    ForwardList<int> list(&mem);
 
-    pmr_map_resource mem(buffer.data(), buffer.size());
+    list.push_back(5);
+    list.push_back(6);
 
-    { pmr_forward_list<int> tmp(&mem);
-      for (int i = 0; i < 10; i++) tmp.push_front(i);
+    list.pop_front();
+
+    auto it = list.begin();
+    ASSERT_NE(it, list.end());
+    EXPECT_EQ(*it, 6);
+}
+
+TEST(ForwardListTest, PopBackRemovesLastElement) {
+    FixedBlockResource mem(2048);
+    ForwardList<int> list(&mem);
+
+    list.push_back(1);
+    list.push_back(2);
+    list.push_back(3);
+
+    list.pop_back();
+
+    std::vector<int> result;
+    for (int v : list) result.push_back(v);
+
+    ASSERT_EQ(result.size(), 2);
+    EXPECT_EQ(result[0], 1);
+    EXPECT_EQ(result[1], 2);
+}
+
+// ------------------------------------------------------------
+// Complex type test
+// ------------------------------------------------------------
+TEST(ForwardListComplexTest, WorksWithStruct) {
+    struct Obj {
+        std::string s;
+        int n;
+    };
+
+    FixedBlockResource mem(2048);
+    ForwardList<Obj> list(&mem);
+
+    list.push_back({"A", 10});
+    list.push_back({"B", 20});
+
+    auto it = list.begin();
+    ASSERT_NE(it, list.end());
+    EXPECT_EQ(it->s, "A");
+    EXPECT_EQ(it->n, 10);
+
+    ++it;
+    ASSERT_NE(it, list.end());
+    EXPECT_EQ(it->s, "B");
+    EXPECT_EQ(it->n, 20);
+}
+
+// ------------------------------------------------------------
+// Memory reuse test
+// ------------------------------------------------------------
+TEST(MemoryResourceTest, MemoryReuseWorks) {
+    FixedBlockResource mem(4096);
+
+    size_t before_blocks = mem.used_blocks_count();
+
+    {
+        ForwardList<int> temp(&mem);
+        temp.push_back(1);
+        temp.push_back(2);
     }
 
-    pmr_forward_list<int> lst(&mem);
-    lst.push_front(42);
+    size_t after_blocks = mem.used_blocks_count();
 
-    EXPECT_EQ(*lst.begin(), 42);
-}
+    EXPECT_GT(after_blocks, before_blocks);  // blocks allocated
 
-TEST(PMRList, IteratorForward) {
-    static std::array<std::byte, 4096> buffer;
+    ForwardList<int> again(&mem);
+    again.push_back(123);
 
-    pmr_map_resource mem(buffer.data(), buffer.size());
-    pmr_forward_list<int> lst(&mem);
-
-    lst.push_front(2);
-    lst.push_front(1);
-
-    auto it = lst.begin();
-    EXPECT_EQ(*it, 1);
-    ++it;
-    EXPECT_EQ(*it, 2);
-    ++it;
-    EXPECT_EQ(it, lst.end());
-}
-
-TEST(PMRList, SizeAndEmpty) {
-    static std::array<std::byte, 4096> buffer;
-
-    pmr_map_resource mem(buffer.data(), buffer.size());
-    pmr_forward_list<int> lst(&mem);
-
-    EXPECT_TRUE(lst.empty());
-    EXPECT_EQ(lst.size(), 0);
-
-    lst.push_front(7);
-
-    EXPECT_FALSE(lst.empty());
-    EXPECT_EQ(lst.size(), 1);
-
-    lst.pop_front();
-
-    EXPECT_TRUE(lst.empty());
-    EXPECT_EQ(lst.size(), 0);
+    EXPECT_EQ(mem.used_blocks_count(), after_blocks);  // reuse confirmed
 }

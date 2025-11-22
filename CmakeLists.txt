@@ -7,11 +7,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 add_compile_options(-Wall -Wextra -pedantic)
 
-add_executable(main src/main.cpp)
+add_executable(main
+    src/main.cpp
+    src/FixedBlockResource.cpp
+)
 
 # Tests
 find_package(GTest REQUIRED)
 enable_testing()
-add_executable(tests tests/tests.cpp)
+add_executable(tests
+    tests/tests.cpp
+    src/FixedBlockResource.cpp
+)
 target_link_libraries(tests PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME tests COMMAND tests)

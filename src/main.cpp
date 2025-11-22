@@ -1,10 +1,8 @@
 #include <iostream>
-#include <string>
-#include <array>
 #include <memory_resource>
 
-#include "pmr_map_resource.hpp"
-#include "pmr_forward_list.hpp"
+#include "FixedBlockResource.h"
+#include "ForwardList.h"
 
 struct Person {
     std::string name;
@@ -12,32 +10,65 @@ struct Person {
 };
 
 int main() {
-    std::cout << "=== PMR Forward List Demo ===\n";
 
-    // Fixed 64 KB buffer
-    static std::array<std::byte, 64 * 1024> buffer;
+    FixedBlockResource mem(4096);
 
-    pmr_map_resource mem(buffer.data(), buffer.size());
+    // ForwardList<int>
+    std::cout << "[ForwardList<int>]\n";
 
-    // List of integers
-    pmr_forward_list<int> ints(&mem);
-    ints.push_front(3);
-    ints.push_front(2);
-    ints.push_front(1);
+    ForwardList<int> list(&mem);
 
-    std::cout << "Integers: ";
-    for (int v : ints)
+    list.push_back(10);
+    list.push_back(20);
+    list.push_back(30);
+
+    std::cout << "Values: ";
+    for (int v : list)
         std::cout << v << " ";
     std::cout << "\n";
 
-    // List of custom struct
-    pmr_forward_list<Person> people(&mem);
-    people.emplace_front("Alice", 22);
-    people.emplace_front("Bob", 30);
+    std::cout << "Manual iteration: ";
+    for (auto it = list.begin(); it != list.end(); ++it)
+        std::cout << *it << " ";
+    std::cout << "\n\n";
 
-    std::cout << "People:\n";
+    // Memory reuse demo
+    {
+        std::cout << "[Temporary list for reuse test]\n";
+        ForwardList<int> temp(&mem);
+        temp.push_back(111);
+        temp.push_back(222);
+
+        std::cout << "Temp: ";
+        for (int x : temp)
+            std::cout << x << " ";
+        std::cout << "\n";
+
+        std::cout << "Destroying temp...\n\n";
+    }
+
+    std::cout << "[New list after destruction of temp]\n";
+    ForwardList<int> reused(&mem);
+    reused.push_back(999);
+    reused.push_back(888);
+
+    std::cout << "Reused: ";
+    for (int x : reused)
+        std::cout << x << " ";
+    std::cout << "\n\n";
+
+    // ForwardList<Person>
+    std::cout << "[ForwardList<Person>]\n";
+    ForwardList<Person> people(&mem);
+
+    people.push_back({"Alice", 30});
+    people.push_back({"Bob", 25});
+    people.push_back({"Charlie", 40});
+
     for (const auto& p : people)
-        std::cout << "  " << p.name << " (" << p.age << ")\n";
+        std::cout << p.name << " (" << p.age << ")\n";
+
+    std::cout << "\n";
 
     return 0;
 }
